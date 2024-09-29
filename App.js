@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { initializeApp } from '@firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from '@firebase/auth';
 
@@ -14,12 +14,29 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 
-const AuthScreen = ({ email, setEmail, password, setPassword, isLogin, setIsLogin, handleAuthentication }) => {
+// Password and email regex
+const PWD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%]).{8,24}$/;
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@locker\.com$/;
+
+const AuthScreen = ({
+  email,
+  setEmail,
+  password,
+  setPassword,
+  confirmPassword,
+  setConfirmPassword,
+  isLogin,
+  setIsLogin,
+  handleAuthentication,
+  warning,
+  showPassword,
+  toggleShowPassword,
+}) => {
   return (
     <View style={styles.authContainer}>
-       <Text style={styles.title}>{isLogin ? 'Sign In' : 'Sign Up'}</Text>
+      <Text style={styles.title}>{isLogin ? 'Sign In' : 'Sign Up'}</Text>
 
-       <TextInput
+      <TextInput
         style={styles.input}
         value={email}
         onChangeText={setEmail}
@@ -31,8 +48,22 @@ const AuthScreen = ({ email, setEmail, password, setPassword, isLogin, setIsLogi
         value={password}
         onChangeText={setPassword}
         placeholder="Password"
-        secureTextEntry
+        secureTextEntry={!showPassword}
       />
+      {!isLogin && (
+        <TextInput
+          style={styles.input}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Confirm Password"
+          secureTextEntry={!showPassword}
+        />
+      )}
+      <TouchableOpacity onPress={toggleShowPassword} style={styles.showPasswordContainer}>
+        <Text style={styles.showPasswordText}>{showPassword ? 'Hide Password' : 'Show Password'}</Text>
+      </TouchableOpacity>
+      {warning && <Text style={styles.warningText}>{warning}</Text>}
+
       <View style={styles.buttonContainer}>
         <Button title={isLogin ? 'Sign In' : 'Sign Up'} onPress={handleAuthentication} color="#3498db" />
       </View>
@@ -44,8 +75,7 @@ const AuthScreen = ({ email, setEmail, password, setPassword, isLogin, setIsLogi
       </View>
     </View>
   );
-}
-
+};
 
 const AuthenticatedScreen = ({ user, handleAuthentication }) => {
   return (
@@ -56,11 +86,15 @@ const AuthenticatedScreen = ({ user, handleAuthentication }) => {
     </View>
   );
 };
+
 export default App = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [user, setUser] = useState(null); // Track user authentication state
   const [isLogin, setIsLogin] = useState(true);
+  const [warning, setWarning] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // State to manage password visibility
 
   const auth = getAuth(app);
   useEffect(() => {
@@ -71,8 +105,26 @@ export default App = () => {
     return () => unsubscribe();
   }, [auth]);
 
-  
   const handleAuthentication = async () => {
+    // Clear any previous warnings
+    setWarning('');
+
+    if (!isLogin) {
+      // Validate email and password
+      if (!EMAIL_REGEX.test(email)) {
+        setWarning('Invalid email format. Use "abc@locker.com".');
+        return;
+      }
+      if (!PWD_REGEX.test(password)) {
+        setWarning('Password must be 8-24 characters long, include uppercase and lowercase letters, a number, and a special character.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setWarning('Passwords do not match.');
+        return;
+      }
+    }
+
     try {
       if (user) {
         // If user is already authenticated, log out
@@ -92,7 +144,12 @@ export default App = () => {
       }
     } catch (error) {
       console.error('Authentication error:', error.message);
+      setWarning(error.message);
     }
+  };
+
+  const toggleShowPassword = () => {
+    setShowPassword((prev) => !prev);
   };
 
   return (
@@ -107,14 +164,20 @@ export default App = () => {
           setEmail={setEmail}
           password={password}
           setPassword={setPassword}
+          confirmPassword={confirmPassword}
+          setConfirmPassword={setConfirmPassword}
           isLogin={isLogin}
           setIsLogin={setIsLogin}
           handleAuthentication={handleAuthentication}
+          warning={warning}
+          showPassword={showPassword}
+          toggleShowPassword={toggleShowPassword}
         />
       )}
     </ScrollView>
   );
-}
+};
+
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
@@ -158,5 +221,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     marginBottom: 20,
+  },
+  warningText: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  showPasswordContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  showPasswordText: {
+    color: '#3498db',
+    textAlign: 'center',
   },
 });
